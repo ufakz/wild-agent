@@ -6,11 +6,11 @@ import yaml
 from pydantic import ValidationError
 
 from src.config.models import (
+    WEB_SEARCH_PROVIDERS,
     CollectionConfig,
     EmbeddingsConfig,
     HarvestConfig,
     LLMsConfig,
-    WEB_SEARCH_PROVIDERS,
     WildConfig,
     default_llms,
 )

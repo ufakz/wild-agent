@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -26,11 +27,35 @@ class CollectionConfig(BaseModel):
         ),
     )
     output: str | None = None
+    max_pending_urls: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum URLs kept in the pending queue after each search",
+    )
+    min_words: int = Field(
+        default=20,
+        ge=1,
+        le=5000,
+        description="Minimum words per extracted sample",
+    )
+    max_words: int = Field(
+        default=100,
+        ge=1,
+        le=5000,
+        description="Maximum words per extracted sample",
+    )
 
     @model_validator(mode="after")
     def require_theme_or_examples(self) -> "CollectionConfig":
         if not self.theme and not self.examples:
             raise ValueError("collection must include either theme or examples")
+        return self
+
+    @model_validator(mode="after")
+    def words_in_order(self) -> "CollectionConfig":
+        if self.min_words > self.max_words:
+            raise ValueError("collection.min_words must be <= collection.max_words")
         return self
 
 
@@ -39,7 +64,13 @@ class HarvestConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    seed_batch_size: int = Field(default=1, ge=1, le=10)
+    seed_batch_size: int = Field(default=1, ge=1, le=20)
+    max_concurrent_seeds: int = Field(
+        default=1,
+        ge=1,
+        le=10,
+        description="Max parallel seed URL crawls within one harvest batch",
+    )
     max_depth: int = Field(
         default=0,
         ge=0,
@@ -54,6 +85,9 @@ class HarvestConfig(BaseModel):
         description="Max concurrent page fetches/extractions within one crawl",
     )
     include_external: bool = False
+    cache_mode: Literal["bypass", "enabled"] = "bypass"
+    blocked_domains: list[str] = Field(default_factory=list)
+    allowed_domains: list[str] = Field(default_factory=list)
 
 
 class EmbeddingsConfig(BaseModel):

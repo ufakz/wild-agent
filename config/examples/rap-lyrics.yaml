@@ -1,0 +1,22 @@
+# Examples-only collection: embed rap-style seed lyrics, find similar web text.
+collection:
+  examples:
+    - seeds/rap_lyrics.txt
+  target_count: 20
+  min_words: 15
+  max_words: 30
+  similarity_threshold: 0.65
+  max_iterations: 10
+  output: rap_lyrics_collection.csv
+
+harvest:
+  seed_batch_size: 5
+  max_concurrent_seeds: 3
+  semaphore_count: 3
+  max_depth: 0
+  blocked_domains:
+    - wikipedia.org
+    - sciencedirect.com
+    - sagepub.com
+    - researchgate.net
+    - arxiv.org

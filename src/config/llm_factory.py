@@ -2,19 +2,19 @@ import asyncio
 import logging
 import os
 
+from crawl4ai import LLMConfig
 from langchain.chat_models import init_chat_model
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable
-from crawl4ai import LLMConfig
-from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 
 from src.config.models import (
     CRAWL4AI_PROVIDERS,
+    WEB_SEARCH_PROVIDERS,
     ChatLLMConfig,
     ExplorerLLMConfig,
     HarvesterLLMConfig,
-    WEB_SEARCH_PROVIDERS,
 )
 from src.search.url_extraction import extract_urls_from_ai_message, extract_urls_from_ddg_results
 

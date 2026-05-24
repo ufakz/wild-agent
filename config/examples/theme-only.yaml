@@ -1,0 +1,6 @@
+collection:
+  theme: "machine learning tutorials"
+  target_count: 5
+  min_relevance: 6
+  max_iterations: 30
+  output: theme_results.csv

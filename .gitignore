@@ -57,3 +57,6 @@ examples/expected-output.json
 # Models cache
 .cache/
 models/
+
+# csv
+*.csv

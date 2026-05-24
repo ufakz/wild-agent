@@ -1,0 +1,5 @@
+Python's asyncio library provides a foundation for writing concurrent code using the async/await syntax. Coroutines are the building blocks of asyncio programs. An event loop runs coroutines and schedules callbacks when I/O completes.
+
+For production services, prefer structured concurrency patterns: use TaskGroup to manage related tasks, set timeouts on network calls, and handle cancellation cleanly. Testing async code benefits from pytest-asyncio and explicit fixture setup for the event loop.
+
+When integrating asyncio with synchronous libraries, run blocking work in asyncio.to_thread or an executor rather than blocking the event loop. This keeps latency predictable under load.

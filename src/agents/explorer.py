@@ -1,6 +1,7 @@
 from src.agents.state import AgentState
 from src.config.llm_factory import search_urls
 from src.config.models import WildConfig
+from src.search.domain_filter import filter_urls_by_domain
 
 
 async def explorer_node(state: AgentState, *, wild_config: WildConfig) -> dict:
@@ -28,13 +29,16 @@ async def explorer_node(state: AgentState, *, wild_config: WildConfig) -> dict:
                 explorer_cfg,
             )
 
+        new_urls = filter_urls_by_domain(new_urls, wild_config.harvest)
+
         seen = set(pending) | visited
         for url in new_urls:
             if url not in seen:
                 seen.add(url)
                 pending.append(url)
 
-        pending = pending[:20]
+        max_pending = wild_config.collection.max_pending_urls
+        pending = pending[:max_pending]
         next_index = current_index + 1
 
         if pending:

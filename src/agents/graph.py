@@ -1,13 +1,14 @@
 from functools import partial
 from typing import Any
 
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
-from src.agents.state import AgentState, derive_collection_mode
-from src.agents.planner import planner_node
+from src.agents.auditor import auditor_node
+from src.agents.crawler_session import CrawlerSession
 from src.agents.explorer import explorer_node
 from src.agents.harvester import harvester_node
-from src.agents.auditor import auditor_node
+from src.agents.planner import planner_node
+from src.agents.state import AgentState, derive_collection_mode
 from src.config.models import WildConfig
 from src.similarity.similarity import embed_reference_texts
 
@@ -42,8 +43,10 @@ def router_node(state: AgentState) -> dict:
     return {}
 
 
-def _create_graph(config: WildConfig):
-
+def _create_graph(
+    config: WildConfig,
+    crawler_session: CrawlerSession | None = None,
+):
     # Graph definition
     graph = StateGraph(AgentState)
 
@@ -51,9 +54,16 @@ def _create_graph(config: WildConfig):
     graph.add_node("router", router_node)
     graph.add_node("planner", partial(planner_node, wild_config=config))
     graph.add_node("explorer", partial(explorer_node, wild_config=config))
-    graph.add_node("harvester", partial(harvester_node, wild_config=config))
+    graph.add_node(
+        "harvester",
+        partial(
+            harvester_node,
+            wild_config=config,
+            crawler_session=crawler_session,
+        ),
+    )
     graph.add_node("auditor", partial(auditor_node, wild_config=config))
-    
+
     # Add edges
     graph.add_edge(START, "router")
     graph.add_conditional_edges(
@@ -123,11 +133,12 @@ async def run_collection(config: WildConfig) -> dict[str, Any]:
             embedding_model=config.embeddings.model,
         )
 
-    graph = _create_graph(config)
-    initial_state = get_initial_state(config)
-    initial_state["reference_embeddings"] = reference_embeddings
+    async with CrawlerSession() as crawler_session:
+        graph = _create_graph(config, crawler_session=crawler_session)
+        initial_state = get_initial_state(config)
+        initial_state["reference_embeddings"] = reference_embeddings
 
-    final_state = await graph.ainvoke(initial_state)
+        final_state = await graph.ainvoke(initial_state)
     samples = list(final_state.get("samples", []))
     mode = final_state.get("collection_mode", "theme")
     final_state["samples"] = _sort_samples(samples, mode)

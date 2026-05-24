@@ -1,0 +1,7 @@
+collection:
+  examples:
+    - seeds/sample.txt
+  target_count: 5
+  similarity_threshold: 0.65
+  max_iterations: 30
+  output: similarity_results.csv

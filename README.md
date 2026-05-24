@@ -1,316 +1,207 @@
-# Wild Agent 🦁
+# Wild Agent
 
-**Sample Collection and Similarity Ranking using LLMs and Semantic Embeddings**
+A multi-agent web text collection using LangGraph, Crawl4AI, and sentence-transformers. Define a run in YAML, provide API keys via environment variables, and collect ranked text samples from the web by theme, by similarity to example texts, or both.
 
-Wild Agent analyzes your text samples, collects similar content from the web using LLMs and web crawling, and ranks results by semantic similarity using state-of-the-art embeddings.
+## Requirements
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+- Python 3.11 or newer
+- [uv](https://docs.astral.sh/uv/) (recommended for install and runs)
+- API keys for the LLM providers referenced in your config (`api_key_env` per stage)
+- Optional: `uv sync --extra providers` for xAI native web search (`langchain-xai`, `langchain-anthropic`)
 
-## 🌟 Features
-
-- **🔍 Intelligent Theme Extraction**: Analyzes your samples using LLMs (Grok API) to extract common themes and patterns
-- **🌐 Multi-Source Collection**: Gathers similar content from:
-  - Online search powered by LLMs
-  - URL crawling with async web scraping (crawl4ai)
-- **🧹 Smart Deduplication**: Removes duplicates using:
-  - Hash-based exact duplicate detection
-  - Embedding-based near-duplicate detection (>95% similarity)
-- **📊 Semantic Ranking**: Ranks candidates using Google's EmbeddingGemma (768-dim embeddings)
-- **⚡ Async Processing**: Concurrent operations for fast collection and ranking
-- **🎨 Beautiful CLI**: Rich console output with progress indicators and similarity visualizations
-- **📦 JSON Export**: Export results for integration with other tools
-
-## 🚀 Quick Start
-
-### Installation
+## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/wild-agent.git
+git clone <repository-url>
 cd wild-agent
-
-# Create virtual environment
-python3.11 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -e .
-
-# Set up environment variables
+uv sync
 cp .env.example .env
-# Edit .env and add your API keys:
-# - XAI_API_KEY: Your Grok API key (required for LLM features)
-# - HF_TOKEN: Your HuggingFace token (required for EmbeddingGemma)
-#   Get it from: https://huggingface.co/settings/tokens
-#   Accept license at: https://huggingface.co/google/embeddinggemma-300m
 ```
 
-### Basic Usage
+Set the variables named in your YAML (for example `OPENAI_API_KEY`). The CLI loads `.env` at startup via `python-dotenv`.
+
+## Quick start
+
+For a small first run, use an example config rather than the full default:
 
 ```bash
-# Analyze a single sample and find similar content
-wild-agent collect --sample "Your reference text here"
-
-# Multiple samples with specific URLs
-wild-agent collect \
-  --sample "First sample" \
-  --sample "Second sample" \
-  --url https://example.com \
-  --url https://another-site.com
-
-# Load from files and export results
-wild-agent collect \
-  --sample-file samples.txt \
-  --urls-file urls.txt \
-  --export results.json \
-  --verbose
-
-# Adjust ranking parameters
-wild-agent collect \
-  --sample "Reference text" \
-  --threshold 0.8 \
-  --top-n 5
+uv run wild-agent config/examples/theme-only.yaml
 ```
 
-## 📖 Documentation
-
-### Command-Line Interface
-
-```
-wild-agent collect [OPTIONS]
-
-Options:
-  -s, --sample TEXT          Text sample to analyze (multiple allowed)
-  -f, --sample-file PATH     File containing samples (one per line)
-  -u, --url TEXT            URL to crawl (multiple allowed)
-  --urls-file PATH          File containing URLs (one per line)
-  -n, --top-n INTEGER       Maximum results to return [default: 10]
-  -t, --threshold FLOAT     Minimum similarity threshold 0.0-1.0 [default: 0.7]
-  --no-crawl                Disable URL crawling
-  --no-online-search        Disable online search
-  -e, --export PATH         Export results to JSON file
-  -v, --verbose             Enable verbose logging
-  --help                    Show this message and exit
-```
-
-### File Formats
-
-**samples.txt** - One sample per line, `#` for comments:
-```
-# Reference samples
-This is my first reference text about machine learning.
-This is another sample discussing neural networks.
-# Add more samples below
-```
-
-**urls.txt** - One URL per line, `#` for comments:
-```
-# URLs to crawl
-https://example.com/article1
-https://example.com/article2
-# Add more URLs below
-```
-
-### Environment Variables
+With no config argument, the CLI uses `config/default.yaml`:
 
 ```bash
-# Required
-export XAI_API_KEY="your-grok-api-key"
-export HF_TOKEN="your-huggingface-token"
-
-# Optional (with defaults)
-export XAI_API_BASE="https://api.x.ai/v1"
-export XAI_MODEL="grok-beta"
-export LLM_TEMPERATURE="0.7"
-export LLM_MAX_TOKENS="2000"
-export LLM_TIMEOUT="30.0"
-export LLM_MAX_RETRIES="3"
+export OPENAI_API_KEY="your-key"
+uv run wild-agent
 ```
 
-**Note**: You need to accept the EmbeddingGemma license at [https://huggingface.co/google/embeddinggemma-300m](https://huggingface.co/google/embeddinggemma-300m) before using the model.
+## How it works
 
-## 🏗️ Architecture
+Wild Agent runs a LangGraph loop: **Planner → Explorer → Harvester → Auditor**, routed by phase until `collection.target_count` is met or limits apply.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         CLI Interface                            │
-│  (click, argument parsing, output formatting)                   │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Pipeline Orchestrator                         │
-└─────────┬─────────────────┬─────────────────┬───────────────────┘
-          │                 │                 │
-          ▼                 ▼                 ▼
-┌──────────────────┐ ┌──────────────┐ ┌──────────────────┐
-│  LLM Analyzer    │ │   Sample     │ │   Similarity     │
-│  (Grok API)      │ │  Collector   │ │    Ranker        │
-│                  │ │              │ │                  │
-│ • Theme extract  │ │ • Online     │ │ • Embedding      │
-│ • JSON parsing   │ │   search     │ │   generation     │
-│ • Error handling │ │ • Web crawl  │ │ • Cosine sim     │
-│                  │ │ • Dedup      │ │ • Threshold      │
-└──────────────────┘ └──────────────┘ └──────────────────┘
+```mermaid
+flowchart LR
+    START --> router
+    router --> planner
+    router --> explorer
+    router --> harvester
+    router --> auditor
+    planner --> router
+    explorer --> router
+    harvester --> router
+    auditor --> router
+    router --> END
 ```
 
-### Core Components
+| Phase | Role |
+|-------|------|
+| **Planner** | Derives themes and search queries from `collection.theme` and/or `collection.examples`. |
+| **Explorer** | Runs one search query per visit; enqueues URLs (capped by `max_pending_urls`). |
+| **Harvester** | Crawls a batch of URLs with Crawl4AI, extracts candidate samples with an LLM, and queues them for audit. |
+| **Auditor** | Accepts or rejects each sample by theme score, embedding similarity, or both. |
 
-1. **LLM Analyzer** (`src/analyzers/`)
-   - Extracts themes from reference samples
-   - Uses Grok API for analysis
-   - Configurable via environment variables
+**Iteration limit:** `collection.max_iterations` counts explore→harvest pairs only. Auditing and draining the URL queue can continue after the limit; new searches stop when the limit is reached at the explore phase.
 
-2. **Sample Collector** (`src/collectors/`)
-   - **Online Collector**: LLM-powered internet search
-   - **Crawler Collector**: Async web crawling with crawl4ai
-   - **Orchestrator**: Coordinates both sources in parallel
+**Browser reuse:** One `AsyncWebCrawler` session is opened for the entire CLI run and reused across harvest steps.
 
-3. **Deduplicator** (`src/lib/`)
-   - Stage 1: SHA-256 hash for exact duplicates
-   - Stage 2: Embedding similarity for near-duplicates
+## Collection modes
 
-4. **Similarity Ranker** (`src/rankers/`)
-   - **Embedding Service**: Google EmbeddingGemma-300m (768-dim vectors)
-   - **Similarity Calculator**: Cosine/Euclidean/Dot Product
-   - **Ranker**: Filters, sorts, and limits results
+| Mode | Config | Acceptance |
+|------|--------|------------|
+| Theme | `collection.theme` | LLM relevance score ≥ `min_relevance` (0–10) and quality check |
+| Examples | `collection.examples` | Cosine similarity to reference embeddings ≥ `similarity_threshold` |
+| Both | `theme` and `examples` | Must pass similarity and theme checks |
 
-5. **Data Models** (`src/models/`)
-   - Pydantic models with validation
-   - 12 models covering all entities
+`collection.examples` entries may be inline strings or paths relative to the config file directory (for example `seeds/sample.txt`).
 
-## 🔧 Development
+When both theme and examples are set, the planner analyzes examples first to produce themes and queries. The configured theme is still used by the auditor as a label via `_theme_labels`.
 
-### Setup Development Environment
+## Configuration
+
+Every run needs a `collection` block. Partial configs merge defaults for `harvest`, `embeddings`, and `llms` from [`config/default.yaml`](config/default.yaml); see [`src/config/loader.py`](src/config/loader.py).
+
+### Example configs
+
+| File | Purpose |
+|------|---------|
+| [`config/examples/theme-only.yaml`](config/examples/theme-only.yaml) | Theme-only, small target |
+| [`config/examples/similarity.yaml`](config/examples/similarity.yaml) | Examples / similarity |
+| [`config/examples/both.yaml`](config/examples/both.yaml) | Combined mode |
+| [`config/examples/rap-lyrics.yaml`](config/examples/rap-lyrics.yaml) | Seed file examples and domain blocklist |
+
+### Collection fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `theme` | — | Theme string (required unless `examples` is set) |
+| `examples` | `[]` | Reference texts or file paths |
+| `target_count` | `10` | Accepted samples to collect |
+| `min_relevance` | `7` | Minimum theme score (theme / both modes) |
+| `similarity_threshold` | `0.7` | Minimum similarity (examples / both modes) |
+| `max_iterations` | `50` | Max explore→harvest pairs |
+| `max_pending_urls` | `20` | URL queue cap after each search |
+| `min_words` / `max_words` | `20` / `100` | Per-sample word bounds (harvester extract + filter) |
+| `output` | — | CSV path when export is desired |
+
+### Sample length
+
+```yaml
+collection:
+  min_words: 20
+  max_words: 40
+```
+
+The harvester passes these bounds to the extraction LLM and filters candidates by word count. One page can yield multiple samples; the auditor drains `pending_scraped` until `target_count` is met.
+
+### Harvest tuning
+
+| Field | Meaning |
+|-------|---------|
+| `seed_batch_size` | URLs crawled per harvest graph step |
+| `max_concurrent_seeds` | Parallel `arun` calls within one batch |
+| `max_depth` | `0` = seed page only; `>0` enables BFS link following |
+| `max_pages` | Page limit when `max_depth > 0` |
+| `semaphore_count` | Concurrent fetches within one deep crawl |
+| `blocked_domains` / `allowed_domains` | Host suffix filters (explorer and harvester) |
+| `cache_mode` | `bypass` (default) or `enabled` for Crawl4AI disk cache |
+
+### LLM stages
+
+All stages use the same shape under `llms` (`planner`, `auditor`, `harvester`, `explorer`):
+
+```yaml
+explorer:
+  provider: openai
+  model: gpt-4o-mini
+  api_key_env: OPENAI_API_KEY
+  temperature: 0.2
+  max_results: 10
+  # base_url: ...   # optional, for Azure / xAI / proxies
+```
+
+Harvester adds `chunk_token_threshold` and `overlap_rate`. Each stage reads its API key from the environment variable named by `api_key_env`.
+
+### Explorer search behavior
+
+| `provider` | Search method |
+|------------|----------------|
+| `openai`, `xai` | LangChain Responses API with hosted `web_search` tool |
+| Others (e.g. `anthropic`, `groq`) | DuckDuckGo fallback (no extra API key; a warning is logged at load time) |
+
+For xAI native web search: `uv sync --extra providers`, set `provider: xai`, and optionally `base_url: https://api.x.ai/v1`.
+
+### Embeddings
+
+```yaml
+embeddings:
+  model: all-MiniLM-L6-v2
+```
+
+Used when `collection.examples` is set to embed references and score candidates.
+
+## Output
+
+When `collection.output` is set and at least one sample is accepted, the CLI writes a CSV with these columns:
+
+| Column | Description |
+|--------|-------------|
+| `content` | Sample text (truncated to 1000 characters in export) |
+| `url` | Source page URL |
+| `title` | Page title if available |
+| `similarity_score` | Embedding similarity (examples / both modes) |
+| `relevance_score` | LLM theme score (theme / both modes) |
+| `matched_reference_index` | Index of closest reference example |
+| `themes` | Pipe-separated theme labels |
+| `scraped_at` | Collection timestamp |
+
+`*.csv` files are listed in `.gitignore` and are not committed.
+
+Final samples are sorted by similarity score (examples / both) or relevance score (theme-only) before export.
+
+## Project structure
+
+```
+src/
+  main.py           # CLI entry
+  agents/           # LangGraph nodes, graph, crawler session
+  config/           # Pydantic models, YAML loader, LLM factory
+  search/           # URL extraction, domain filter
+  similarity/       # Embedding scoring
+  text/             # Word-count helpers
+config/
+  default.yaml      # Full schema and defaults
+  examples/         # Partial example configs
+tests/
+```
+
+## Development
 
 ```bash
-# Install with dev dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run linting
-ruff check .
-
-# Format code
-ruff format .
+uv sync --extra dev
+uv run pytest
+uv run ruff check .
 ```
 
-### Project Structure
+## License
 
-```
-wild-agent/
-├── src/
-│   ├── analyzers/          # LLM analysis components
-│   ├── collectors/         # Sample collection (online + crawler)
-│   ├── rankers/           # Similarity ranking
-│   ├── models/            # Pydantic data models
-│   ├── cli/               # Command-line interface
-│   └── lib/               # Utilities (deduplication, etc.)
-├── tests/
-│   ├── unit/              # Unit tests for models
-│   ├── contract/          # Contract tests for components
-│   └── integration/       # End-to-end tests
-├── specs/                 # Design documents
-├── examples/              # Example files
-└── pyproject.toml         # Project configuration
-```
-
-### Running Tests
-
-```bash
-# All tests
-pytest
-
-# Specific test category
-pytest tests/unit/
-pytest tests/contract/
-pytest tests/integration/
-
-# With coverage
-pytest --cov=src --cov-report=html
-
-# Verbose output
-pytest -v
-```
-
-## 📊 Example Output
-
-```
-🔍 Analyzing Samples
-  Extracting themes from 2 sample(s)...
-  ✓ Analysis complete
-
-🌐 Collecting Samples
-  Using: online search, URL crawling (3 URLs)
-  ✓ Collection complete
-  Total samples: 15
-  Duplicates removed: 3
-  
-📊 Ranking Candidates
-  Ranking 12 candidates...
-  Threshold: 0.70 | Top-N: 10
-  ✓ Ranking complete
-  Ranked results: 8
-
-🏆 Top Results
-
-#1 [████████████████████] 0.912
-  Machine learning is a subset of artificial intelligence that enables...
-  Source: INTERNET_SEARCH | https://example.com/ml-intro
-
-#2 [██████████████████░░] 0.874
-  Neural networks are computing systems inspired by biological networks...
-  Source: URL_CRAWL | https://another-site.com/neural-nets
-
-...
-
-📈 Summary
-  Reference samples: 2
-  Candidates collected: 15
-  Results ranked: 8
-  Total time: 12.45s
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/your-feature`
-3. **Write tests** for your changes
-4. **Run linting**: `ruff check . && ruff format .`
-5. **Commit changes**: `git commit -am 'Add feature'`
-6. **Push to branch**: `git push origin feature/your-feature`
-7. **Open a Pull Request**
-
-### Code Style
-
-- Follow PEP 8 guidelines
-- Use type hints for all functions
-- Write docstrings for public APIs
-- Maintain test coverage above 80%
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Google EmbeddingGemma**: For state-of-the-art semantic embeddings
-- **sentence-transformers**: For the embedding framework
-- **crawl4ai**: For async web crawling
-- **Grok (X.AI)**: For LLM capabilities
-- **Pydantic**: For data validation
-- **click**: For CLI framework
-
-## 📧 Contact
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/wild-agent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/wild-agent/discussions)
-
----
-
-**Made with ❤️ by the Wild Agent Team**
+MIT

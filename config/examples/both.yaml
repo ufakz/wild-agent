@@ -1,0 +1,9 @@
+collection:
+  theme: "technical blog posts"
+  examples:
+    - seeds/sample.txt
+  target_count: 5
+  min_relevance: 7
+  similarity_threshold: 0.7
+  max_iterations: 30
+  output: both_results.csv

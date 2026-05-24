@@ -1,17 +1,24 @@
 collection:
   theme: "python asyncio tutorials"
   target_count: 100
+  min_words: 30   # per-sample word count (harvester extract + post-filter)
+  max_words: 50
   min_relevance: 7
   similarity_threshold: 0.7
   max_iterations: 10  # explore→harvest pairs; auditing does not count
+  max_pending_urls: 20  # cap URL queue after each search
   output: python_asyncio_tutorials.csv
 
 # Crawl/extraction limits — tune up if you have higher API rate limits.
 harvest:
-  seed_batch_size: 1   # URLs processed per harvest pass
-  max_depth: 1         # 0 = seed page only (no link following)
-  max_pages: 2         # only used when max_depth > 0
-  semaphore_count: 2   # concurrent page fetches/extractions per crawl
+  seed_batch_size: 5
+  max_concurrent_seeds: 3  # parallel seed URL crawls within a batch
+  max_depth: 0             # 0 = seed page only (no link following)
+  max_pages: 2             # only used when max_depth > 0
+  semaphore_count: 2       # concurrent page fetches/extractions within one deep crawl
+  cache_mode: bypass       # bypass | enabled (enabled speeds re-runs)
+  blocked_domains: []      # host suffixes to skip, e.g. wikipedia.org
+  allowed_domains: []      # if non-empty, only crawl matching hosts
 
 embeddings:
   model: all-MiniLM-L6-v2
