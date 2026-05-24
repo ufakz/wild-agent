@@ -1,0 +1,43 @@
+collection:
+  theme: "python asyncio tutorials"
+  target_count: 100
+  min_relevance: 7
+  similarity_threshold: 0.7
+  max_iterations: 10  # explore→harvest pairs; auditing does not count
+  output: python_asyncio_tutorials.csv
+
+# Crawl/extraction limits — tune up if you have higher API rate limits.
+harvest:
+  seed_batch_size: 1   # URLs processed per harvest pass
+  max_depth: 1         # 0 = seed page only (no link following)
+  max_pages: 2         # only used when max_depth > 0
+  semaphore_count: 2   # concurrent page fetches/extractions per crawl
+
+embeddings:
+  model: all-MiniLM-L6-v2
+
+llms:
+  planner:
+    provider: openai
+    model: gpt-4o
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.3
+  auditor:
+    provider: openai
+    model: gpt-4o
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.1
+  harvester:
+    provider: openai
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.3
+    max_tokens: 4000
+    chunk_token_threshold: 4000
+    overlap_rate: 0.1
+  explorer:
+    provider: openai
+    model: gpt-4o
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.2
+    max_results: 10
